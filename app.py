@@ -98,5 +98,17 @@ if uploaded_file is not None:
                 st.write("- 수익률이 매우 훌륭합니다! 현재 예산 내에서 기회를 놓치고 있을 수 있습니다.")
                 st.write("- **운영**: **목표수익률을 10~20% 하향** 조정하여 노출을 더 공격적으로 확보하세요. 매출 규모(Scale-up)를 키워 점유율을 뺏어올 시점입니다.")
 
+        # 하단 홈페이지 링크 추가
+        st.divider()
+        footer_left, footer_center, footer_right = st.columns([1, 2, 1])
+        with footer_center:
+            st.markdown(
+                "<div style='text-align: center;'>"
+                "<b>🔗 더 많은 운영 노하우가 궁금하다면?</b><br>"
+                "<a href='https://hoonpro.liveklass.com/' target='_blank'>🏠 쇼크트리 훈프로 홈페이지 바로가기</a>"
+                "</div>", 
+                unsafe_allow_html=True
+            )
+
     except Exception as e:
         st.error(f"오류 발생: {e}")

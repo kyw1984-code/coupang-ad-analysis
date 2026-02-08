@@ -80,7 +80,7 @@ if uploaded_file is not None:
         t_perf = total_row.iloc[0]
         col1, col2, col3 = st.columns(3)
 
-         with col1:
+        with col1:
             st.info("🖼️ **CTR 분석 (썸네일)**")
             if total_perf['클릭률(CTR)'] < 0.01:
                 st.write(f"- **현재 CTR: {total_perf['클릭률(CTR)']:.2%}**")

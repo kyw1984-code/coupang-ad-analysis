@@ -64,7 +64,10 @@ if uploaded_file is not None:
             bad_kws = kw_agg[bad_mask].sort_values(by='광고비', ascending=False)
 
             if not bad_kws.empty:
-                st.error(f"⚠️ 현재 총 **{len(bad_kws)}개**의 키워드가 매출 없이 광고비만 소진 중입니다.")
+                # [추가된 부분] 낭비되고 있는 광고비 합계 계산
+                total_waste_spend = bad_kws['광고비'].sum()
+                
+                st.error(f"⚠️ 현재 총 **{len(bad_kws)}개**의 키워드가 매출 없이 **{total_waste_spend:,.0f}원**의 광고비를 소진했습니다.")
                 bad_names = bad_kws['키워드'].astype(str).tolist()
                 copy_text = ", ".join(bad_names)
                 st.text_area("📋 아래 키워드를 복사 후 '제외 키워드'에 등록하세요:", value=copy_text, height=120)
@@ -78,7 +81,6 @@ if uploaded_file is not None:
         st.divider()
         st.subheader("💡 훈프로의 정밀 운영 제안")
         
-        # [수정포인트] 변수명을 t_perf로 통일하여 오류 해결
         t_perf = total_row.iloc[0]
         col1, col2, col3 = st.columns(3)
 

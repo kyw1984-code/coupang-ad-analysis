@@ -1,114 +1,35 @@
-import streamlit as st
-import pandas as pd
+# (기존 데이터 분석 로직 이후에 추가)
 
-# 1. 페이지 설정
-st.set_page_config(page_title="훈프로 쿠팡 광고 분석기", layout="wide")
-st.title("📊 쇼크트리 훈프로 쿠팡 광고 성과 분석")
-st.markdown("쿠팡 보고서를 업로드하면 훈프로의 정밀 운영 전략이 자동으로 생성됩니다.")
-
-# 2. 파일 업로드
-uploaded_file = st.file_uploader("보고서 파일을 선택하세요 (CSV 또는 XLSX)", type=['csv', 'xlsx'])
-
-if uploaded_file is not None:
-    try:
-        if uploaded_file.name.endswith('.csv'):
-            df = pd.read_csv(uploaded_file)
-        else:
-            df = pd.read_excel(uploaded_file, engine='openpyxl')
-
-        # 3. 데이터 분석
-        col_qty = '총 판매수량(14일)' if '총 판매수량(14일)' in df.columns else '총 판매수량(1일)'
-        col_rev = '총 전환매출액(14일)' if '총 전환매출액(14일)' in df.columns else '총 전환매출액(1일)'
-
-        target_cols = {'노출수': 'sum', '클릭수': 'sum', '광고비': 'sum', col_qty: 'sum', col_rev: 'sum'}
-        summary = df.groupby('광고 노출 지면').agg(target_cols).reset_index()
-        summary.columns = ['지면', '노출수', '클릭수', '광고비', '판매수량', '매출액']
-
-        summary['클릭률(CTR)'] = (summary['클릭수'] / summary['노출수']).fillna(0)
-        summary['구매전환율(CVR)'] = (summary['판매수량'] / summary['클릭수']).fillna(0)
-        summary['CPC'] = (summary['광고비'] / summary['클릭수']).fillna(0).astype(int)
-        summary['ROAS'] = (summary['매출액'] / summary['광고비']).fillna(0)
-
-        total = summary.sum(numeric_only=True)
-        total_row = pd.DataFrame([{
-            '지면': '🏢 전체 합계',
-            '노출수': total['노출수'], '클릭수': total['클릭수'], '광고비': total['광고비'],
-            '판매수량': total['판매수량'], '매출액': total['매출액'],
-            '클릭률(CTR)': total['클릭수'] / total['노출수'] if total['노출수'] > 0 else 0,
-            '구매전환율(CVR)': total['판매수량'] / total['클릭수'] if total['클릭수'] > 0 else 0,
-            'CPC': int(total['광고비'] / total['클릭수']) if total['클릭수'] > 0 else 0,
-            'ROAS': total['매출액'] / total['광고비'] if total['광고비'] > 0 else 0
-        }])
-        
-        display_df = pd.concat([summary, total_row], ignore_index=True)
-
-        st.subheader("📍 성과 상세 지표")
-        st.dataframe(display_df.style.format({
-            '노출수': '{:,.0f}', '클릭수': '{:,.0f}', '광고비': '{:,.0f}원', 
-            '판매수량': '{:,.0f}', '매출액': '{:,.0f}원', 'CPC': '{:,.0f}원',
-            '클릭률(CTR)': '{:.2%}', '구매전환율(CVR)': '{:.2%}', 'ROAS': '{:.2%}'
-        }), use_container_width=True)
-
-        # 5. 전략 제안 로직 (수익성 강화 버전)
+        # 4. 저효율 키워드 추출 (광고비 > 0 이고 판매수량 == 0인 데이터)
         st.divider()
-        st.subheader("💡 훈프로의 정밀 운영 제안")
+        st.subheader("✂️ 광고비 도둑 키워드 (제외 대상 제안)")
         
-        total_perf = total_row.iloc[0]
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            st.info("🖼️ **CTR 분석 (썸네일)**")
-            if total_perf['클릭률(CTR)'] < 0.01:
-                st.write(f"- **현재 CTR: {total_perf['클릭률(CTR)']:.2%}**")
-                st.write("- **분석**: 노출 대비 고객의 선택을 받지 못하고 있습니다.")
-                st.write("- **액션**: 썸네일 배경 제거, 다른 이미지 활용, 혹은 상품명 앞단 키워드를 직관적으로 수정하세요.")
-            else:
-                st.write(f"- **현재 CTR: {total_perf['클릭률(CTR)']:.2%}**")
-                st.write("- **분석**: 시각적 소구력이 충분합니다. 현재 이미지를 유지하며 유입량 확대에 집중하세요.")
-
-        with col2:
-            st.warning("🛒 **CVR 분석 (상세페이지)**")
-            if total_perf['구매전환율(CVR)'] < 0.05:
-                st.write(f"- **현재 CVR: {total_perf['구매전환율(CVR)']:.2%}**")
-                st.write("- **분석**: 들어온 고객이 그냥 나갑니다. 상세페이지 설득력이 부족하거나 리뷰 신뢰도가 낮습니다.")
-                st.write("- **액션**: 상단 3초 안에 핵심 혜택(무료배송, 특가, 증정 등)을 배치하고 베스트 리뷰를 상단에 노출하세요.")
-            else:
-                st.write(f"- **현재 CVR: {total_perf['구매전환율(CVR)']:.2%}**")
-                st.write("- **분석**: 상세페이지가 매우 훌륭합니다. 유입 단가(CPC)만 관리하면 큰 수익이 가능합니다.")
-
-        with col3:
-            st.error("💰 **ROAS 분석 (수익성 정밀 진단)**")
-            roas = total_perf['ROAS']
-            st.write(f"- **현재 ROAS: {roas:.2%}**")
+        # 원본 데이터(df)에서 키워드별로 그룹화하여 분석
+        # 쿠팡 보고서 컬럼명 기준: '키워드'
+        if '키워드' in df.columns:
+            kw_analysis = df.groupby('키워드').agg({
+                '광고비': 'sum',
+                col_qty: 'sum'
+            }).reset_index()
             
-            if roas < 2.0:
-                st.write("🆘 **[심각] 손실 구간**")
-                st.write("- 현재 판매가 대비 광고비 소진이 너무 빠릅니다. 마진율이 50%가 넘지 않는다면 현재 적자 상태입니다.")
-                st.write("- **운영**: **목표수익률을 30~50% 대폭 상향**하여 광고 노출을 제한하고, 성과 없는 키워드를 즉시 제외 처리하세요.")
-            elif 2.0 <= roas < 4.0:
-                st.write("⚠️ **[주의] 저효율 구간**")
-                st.write("- 매출은 나오지만 실질 수익은 적거나 '또이또이'인 상태일 가능성이 큽니다.")
-                st.write("- **운영**: **목표수익률을 10~20% 상향** 조정하여 보수적으로 운영하세요. 효율이 높은 검색 지면 비중을 높여야 합니다.")
-            elif 4.0 <= roas < 6.0:
-                st.write("✅ **[안정] 수익 유지 구간**")
-                st.write("- 안정적인 운영 상태입니다. 유입량과 매출액의 밸런스가 좋습니다.")
-                st.write("- **운영**: **현 설정을 유지**하되, 경쟁사가 공격적으로 들어오는지 데일리로 체크하세요.")
+            # 필터링: 광고비는 썼는데 판매수량은 0인 키워드
+            bad_keywords_df = kw_analysis[
+                (kw_analysis['광고비'] > 0) & (kw_analysis[col_qty] == 0)
+            ].sort_values(by='광고비', ascending=False)
+
+            if not bad_keywords_df.empty:
+                st.write(f"현재 총 **{len(bad_keywords_df)}개**의 키워드가 매출 없이 광고비만 소진하고 있습니다.")
+                
+                # 텍스트 복사 기능 (코드 블록 형태나 text_area 활용)
+                bad_kw_list = ", ".join(bad_keywords_df['키워드'].tolist())
+                st.text_area("📋 아래 키워드를 복사하여 '제외 키워드'에 등록하세요:", value=bad_kw_list, height=100)
+                
+                # 상세 표 노출
+                st.dataframe(bad_keywords_df.style.format({
+                    '광고비': '{:,.0f}원',
+                    col_qty: '{:,.0f}개'
+                }), use_container_width=True)
             else:
-                st.write("🚀 **[확장] 고효율 성장 구간**")
-                st.write("- 수익률이 매우 훌륭합니다! 현재 예산 내에서 기회를 놓치고 있을 수 있습니다.")
-                st.write("- **운영**: **목표수익률을 10~20% 하향** 조정하여 노출을 더 공격적으로 확보하세요. 매출 규모(Scale-up)를 키워 점유율을 뺏어올 시점입니다.")
-
-        # 하단 홈페이지 링크 추가
-        st.divider()
-        footer_left, footer_center, footer_right = st.columns([1, 2, 1])
-        with footer_center:
-            st.markdown(
-                "<div style='text-align: center;'>"
-                "<b>🔗 더 많은 운영 노하우가 궁금하다면?</b><br>"
-                "<a href='https://hoonpro.liveklass.com/' target='_blank'>🏠 쇼크트리 훈프로 홈페이지 바로가기</a>"
-                "</div>", 
-                unsafe_allow_html=True
-            )
-
-    except Exception as e:
-        st.error(f"오류 발생: {e}")
+                st.success("🎉 모든 키워드가 제 역할을 하고 있거나 광고비가 집행된 키워드가 없습니다!")
+        else:
+            st.warning("⚠️ 보고서에 '키워드' 컬럼이 없어 키워드별 분석이 불가능합니다. (지면 보고서가 아닌 키워드 보고서를 업로드해주세요)")

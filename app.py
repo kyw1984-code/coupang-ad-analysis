@@ -54,7 +54,7 @@ if uploaded_file is not None:
 
         # 5. 핵심 기능: 광고비 도둑 키워드 (제외 키워드 분석)
         st.divider()
-        st.subheader("✂️ 광고비 도둑 키워드 (제외 대상 제안)")
+        st.subheader("✂️ 돈먹는 키워드 (제외 대상 제안-메인키워드는 제외금지)")
         
         if '키워드' in df.columns:
             # 키워드별로 광고비와 판매수량 집계

@@ -11,30 +11,31 @@ uploaded_file = st.file_uploader("보고서 파일을 선택하세요 (CSV 또�
 
 if uploaded_file is not None:
     try:
-        # 파일 형식에 따른 읽기
+        # 파일 읽기
         if uploaded_file.name.endswith('.csv'):
             df = pd.read_csv(uploaded_file)
         else:
             df = pd.read_excel(uploaded_file, engine='openpyxl')
 
-        # 3. 데이터 전처리 및 컬럼 체크
-        # 쿠팡 보고서 버전에 따라 '14일' 또는 '1일' 기준 컬럼 선택
+        # 3. 컬럼 설정 (보고서 버전에 따른 대응)
         col_qty = '총 판매수량(14일)' if '총 판매수량(14일)' in df.columns else '총 판매수량(1일)'
         col_rev = '총 전환매출액(14일)' if '총 전환매출액(14일)' in df.columns else '총 전환매출액(1일)'
 
-        # 지면별 요약 데이터 생성
-        target_cols = {'노출수': 'sum', '클릭수': 'sum', '광고비': 'sum', col_qty: 'sum', col_rev: 'sum'}
+        # 지면별 요약
+        target_cols = {
+            '노출수': 'sum', 
+            '클릭수': 'sum', 
+            '광고비': 'sum', 
+            col_qty: 'sum', 
+            col_rev: 'sum'
+        }
         summary = df.groupby('광고 노출 지면').agg(target_cols).reset_index()
         summary.columns = ['지면', '노출수', '클릭수', '광고비', '판매수량', '매출액']
 
-        # 주요 지표 계산
+        # 지표 계산
         summary['클릭률(CTR)'] = (summary['클릭수'] / summary['노출수']).fillna(0)
         summary['구매전환율(CVR)'] = (summary['판매수량'] / summary['클릭수']).fillna(0)
         summary['CPC'] = (summary['광고비'] / summary['클릭수']).fillna(0).astype(int)
         summary['ROAS'] = (summary['매출액'] / summary['광고비']).fillna(0)
 
-        # 전체 합계 행 계산
-        total = summary.sum(numeric_only=True)
-        total_row = pd.DataFrame([{
-            '지면': '🏢 전체 합계',
-            '노출수': total['노출수'], '클릭수': total['클릭수'], '광고
+        # 전체 합계 행 (코드가 잘

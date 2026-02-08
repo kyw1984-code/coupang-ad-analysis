@@ -1,0 +1,25 @@
+name: Keep App Alive
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # 매일 한국 시간 기준 오전 9시경 실행
+  workflow_dispatch:      # 우리가 원할 때 수동으로 실행하는 버튼 생성
+
+jobs:
+  auto-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Create empty file or update date
+        run: |
+          date > ping.txt
+          
+      - name: Commit and Push changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add ping.txt
+          git commit -m "Keep-alive ping (automated)"
+          git push

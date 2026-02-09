@@ -8,8 +8,8 @@ st.markdown("쿠팡 보고서를 업로드하면 훈프로의 정밀 운영 전�
 
 # --- 2. 사이드바: 수익성 계산 설정 ---
 st.sidebar.header("💰 마진 계산 설정")
-unit_price = st.sidebar.number_input("상품 판매가 (원)", min_value=0, value=20000, step=100)
-unit_cost = st.sidebar.number_input("원가 + 수수료 등 지출 (원)", min_value=0, value=12000, step=100)
+unit_price = st.sidebar.number_input("상품 판매가 (원)", min_value=0, value=0, step=100)
+unit_cost = st.sidebar.number_input("원가 + 수수료 등 지출 (원)", min_value=0, value=0, step=100)
 
 net_unit_margin = unit_price - unit_cost
 st.sidebar.divider()
@@ -42,6 +42,7 @@ if uploaded_file is not None:
         # 전체 합계 계산
         tot = summary.sum(numeric_only=True)
         total_profit = (tot['판매수량'] * net_unit_margin) - tot['광고비']
+        avg_roas = tot['매출액'] / tot['광고비'] if tot['광고비'] > 0 else 0
         
         total_data = {
             '지면': '🏢 전체 합계',
@@ -50,30 +51,49 @@ if uploaded_file is not None:
             '클릭률(CTR)': tot['클릭수'] / tot['노출수'] if tot['노출수'] > 0 else 0,
             '구매전환율(CVR)': tot['판매수량'] / tot['클릭수'] if tot['클릭수'] > 0 else 0,
             'CPC': int(tot['광고비'] / tot['클릭수']) if tot['클릭수'] > 0 else 0,
-            'ROAS': tot['매출액'] / tot['광고비'] if tot['광고비'] > 0 else 0,
+            'ROAS': avg_roas,
             '실질순이익': total_profit
         }
         total_row = pd.DataFrame([total_data])
         display_df = pd.concat([summary, total_row], ignore_index=True)
 
-        # 5. 성과 요약 대시보드 (Metric 색상 적용)
+        # 5. 성과 요약 대시보드 (위치 및 높이 조정)
         st.subheader("📌 핵심 성과 지표")
+        
+        # 4개 컬럼 생성
         m1, m2, m3, m4 = st.columns(4)
         
-        # 순이익 Metric 설정 (플러스면 빨강, 마이너스면 파랑)
-        # delta_color="normal"은 플러스일 때 초록이지만, 한국 정서(빨강)에 맞게 수동 색상 입히기는 Markdown이 더 정확합니다.
-        # 여기서는 기본 metric의 역전(inverse) 기능을 활용하거나 직접 HTML로 표시합니다.
-        
-        with m1:
-            profit_color = "#FF0000" if total_profit >= 0 else "#0000FF"
-            st.markdown(f"**최종 실질 순이익**")
-            st.markdown(f"<h2 style='color: {profit_color};'>{total_profit:,.0f}원</h2>", unsafe_allow_html=True)
-            
-        m2.metric("총 광고비", f"{tot['광고비']:,.0f}원")
-        m3.metric("평균 ROAS", f"{total_data['ROAS']:.2%}")
-        m4.metric("판매수량", f"{tot['판매수량']:,.0f}개")
+        # 순이익 색상 결정
+        profit_color = "#FF4B4B" if total_profit >= 0 else "#1C83E1" # 빨강/파랑
 
-        # 6. 지면별 상세 분석 (표 내부 색상 적용)
+        # 각 지표를 동일한 HTML 구조로 감싸서 높이와 위치를 정렬
+        with m1:
+            st.markdown(f"""<div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; text-align: center;">
+                <p style="margin:0; font-size:14px; color:#555;">최종 실질 순이익</p>
+                <h2 style="margin:0; color:{profit_color};">{total_profit:,.0f}원</h2>
+            </div>""", unsafe_allow_html=True)
+        
+        with m2:
+            st.markdown(f"""<div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; text-align: center;">
+                <p style="margin:0; font-size:14px; color:#555;">총 광고비</p>
+                <h2 style="margin:0; color:#31333F;">{tot['광고비']:,.0f}원</h2>
+            </div>""", unsafe_allow_html=True)
+            
+        with m3:
+            st.markdown(f"""<div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; text-align: center;">
+                <p style="margin:0; font-size:14px; color:#555;">평균 ROAS</p>
+                <h2 style="margin:0; color:#31333F;">{avg_roas:.2%}</h2>
+            </div>""", unsafe_allow_html=True)
+            
+        with m4:
+            st.markdown(f"""<div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; text-align: center;">
+                <p style="margin:0; font-size:14px; color:#555;">총 판매수량</p>
+                <h2 style="margin:0; color:#31333F;">{tot['판매수량']:,.0f}개</h2>
+            </div>""", unsafe_allow_html=True)
+
+        st.write("") # 간격 조절
+
+        # 6. 지면별 상세 분석
         st.subheader("📍 지면별 상세 분석")
         
         def color_profit(val):
@@ -143,7 +163,6 @@ if uploaded_file is not None:
                 st.write("🆘 **[심각] 손실 구간**")
                 st.write("- **분석**: 광고비 소진이 너무 빠릅니다. 현재 적자 상태일 확률이 매우 높습니다.")
                 st.write("- **목표수익률 조정**: **현재 설정값에서 50~100%p 즉시 상향**하세요.")
-                st.write("- **운영**: 성과 없는 키워드를 즉시 제외하고, 효율이 검증된 키워드에만 집중하세요.")
             elif 2.0 <= roas_val < 4.0:
                 st.write("⚠️ **[주의] 저효율 구간**")
                 st.write("- **분석**: 매출은 발생하나 실질 순수익은 매우 적은 상태입니다.")

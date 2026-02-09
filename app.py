@@ -13,7 +13,7 @@ unit_price = st.sidebar.number_input("상품 판매가 (원)", min_value=0, valu
 unit_cost = st.sidebar.number_input("원가 + 수수료 등 지출 (원)", min_value=0, value=0, step=100)
 
 # 개당 마진 계산
-net_unit_margin = unit_price - coupon_discount - unit_cost
+net_unit_margin = unit_price - unit_cost
 st.sidebar.divider()
 st.sidebar.write(f"**💡 개당 예상 마진:** {net_unit_margin:,.0f}원")
 

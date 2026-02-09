@@ -8,9 +8,9 @@ st.markdown("쿠팡 보고서를 업로드하면 훈프로의 정밀 운영 전�
 
 # --- 2. 사이드바: 수익성 계산을 위한 입력창 추가 ---
 st.sidebar.header("💰 마진 계산 설정")
-unit_price = st.sidebar.number_input("상품 판매가 (원)", min_value=0, value=20000, step=100)
-coupon_discount = st.sidebar.number_input("쿠폰/즉시할인액 (원)", min_value=0, value=0, step=100)
-unit_cost = st.sidebar.number_input("원가 + 수수료 등 지출 (원)", min_value=0, value=12000, step=100)
+unit_price = st.sidebar.number_input("상품 판매가 (원)", min_value=0, value=0, step=100)
+coupon_discount = st.sidebar.number_input("쿠폰/즉시할인액 (원)", min_value=0, value=10000, step=100)
+unit_cost = st.sidebar.number_input("원가 + 수수료 등 지출 (원)", min_value=0, value=0, step=100)
 
 # 개당 마진 계산
 net_unit_margin = unit_price - coupon_discount - unit_cost

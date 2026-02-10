@@ -20,7 +20,7 @@ uploaded_file = st.file_uploader("보고서 파일을 선택하세요 (CSV 또�
 
 if uploaded_file is not None:
     try:
-        # 파일 확장자에 따른 읽기 방식
+        # 파일 읽기
         if uploaded_file.name.endswith('.csv'):
             try:
                 df = pd.read_csv(uploaded_file, encoding='utf-8-sig')
@@ -29,37 +29,48 @@ if uploaded_file is not None:
         else:
             df = pd.read_excel(uploaded_file, engine='openpyxl')
 
-        # 데이터 전처리: 컬럼명 공백 제거
-        df.columns = df.columns.str.strip()
+        # 데이터 전처리: 컬럼명 공백 제거 및 정리
+        df.columns = [str(c).strip() for c in df.columns]
 
-        # --- [오류 해결: 컬럼 자동 매칭 로직] ---
-        # 1. 판매수량 컬럼 찾기
-        possible_qty_cols = ['총 판매수량(14일)', '총 판매수량(1일)', '총 판매수량', '전환 판매수량', '판매수량']
-        col_qty = next((c for c in possible_qty_cols if c in df.columns), None)
+        # --- [강화된 컬럼 매칭 로직] ---
+        # 1. 판매수량으로 추정되는 모든 이름 체크
+        qty_keywords = ['판매수량', '판매 수량', '전환판매수량', '전환 수량', '수량', 'Qty', 'Sales Quantity']
+        col_qty = None
+        for c in df.columns:
+            if any(k in c for k in qty_keywords):
+                col_qty = c
+                break
         
-        # 2. 지면/키워드 등 그룹화 기준 컬럼 찾기
-        possible_group_cols = ['광고 노출 지면', '키워드', '캠페인명', '광고그룹명']
-        col_group = next((c for c in possible_group_cols if c in df.columns), df.columns[0])
+        # 2. 분석 기준(그룹) 컬럼 찾기
+        group_keywords = ['지면', '키워드', '캠페인', '상품명', '광고그룹']
+        col_group = None
+        for c in df.columns:
+            if any(k in c for k in group_keywords):
+                col_group = c
+                break
+        if not col_group: col_group = df.columns[0] # 못 찾으면 첫 번째 컬럼 사용
 
-        # 필수 숫자 컬럼 확인
-        required_nums = ['노출수', '클릭수', '광고비']
-        missing_nums = [c for c in required_nums if c not in df.columns]
+        # 3. 필수 숫자 데이터 찾기
+        col_imp = next((c for c in df.columns if '노출' in c), None)
+        col_clk = next((c for c in df.columns if '클릭' in c), None)
+        col_cost = next((c for c in df.columns if '광고비' in c or '비용' in c), None)
 
+        # 검증 로직
         if not col_qty:
-            st.error("⚠️ 보고서에서 '판매수량' 컬럼을 찾을 수 없습니다. 쿠팡에서 받은 원본 보고서가 맞는지 확인해주세요.")
-        elif missing_nums:
-            st.error(f"⚠️ 필수 데이터({', '.join(missing_nums)})가 보고서에 없습니다.")
+            st.error(f"⚠️ '판매수량' 관련 컬럼을 찾지 못했습니다. 현재 파일의 컬럼명: {list(df.columns)}")
+        elif not all([col_imp, col_clk, col_cost]):
+            st.error("⚠️ 노출수, 클릭수, 광고비 중 누락된 항목이 있습니다. 보고서를 다시 확인해주세요.")
         else:
             # 4. 데이터 요약 분석
             summary = df.groupby(col_group).agg({
-                '노출수': 'sum', 
-                '클릭수': 'sum', 
-                '광고비': 'sum', 
+                col_imp: 'sum', 
+                col_clk: 'sum', 
+                col_cost: 'sum', 
                 col_qty: 'sum'
             }).reset_index()
             summary.columns = ['항목', '노출수', '클릭수', '광고비', '판매수량']
 
-            # 실제 매출 및 ROAS 계산
+            # 수익 지표 계산
             summary['실제매출액'] = summary['판매수량'] * unit_price
             summary['실제ROAS'] = (summary['실제매출액'] / summary['광고비']).fillna(0)
             summary['클릭률(CTR)'] = (summary['클릭수'] / summary['노출수']).fillna(0)
@@ -73,36 +84,20 @@ if uploaded_file is not None:
             total_real_roas = total_real_revenue / tot['광고비'] if tot['광고비'] > 0 else 0
             total_profit = (tot['판매수량'] * net_unit_margin) - tot['광고비']
             
-            total_data = {
-                '항목': '🏢 전체 합계',
-                '노출수': tot['노출수'], '클릭수': tot['클릭수'], '광고비': tot['광고비'],
-                '판매수량': tot['판매수량'], '실제매출액': total_real_revenue,
-                '클릭률(CTR)': tot['클릭수'] / tot['노출수'] if tot['노출수'] > 0 else 0,
-                '구매전환율(CVR)': tot['판매수량'] / tot['클릭수'] if tot['클릭수'] > 0 else 0,
-                'CPC': int(tot['광고비'] / tot['클릭수']) if tot['클릭수'] > 0 else 0,
-                '실제ROAS': total_real_roas,
-                '실질순이익': total_profit
-            }
-            total_row = pd.DataFrame([total_data])
-            display_df = pd.concat([summary, total_row], ignore_index=True)
-
             # 5. 성과 요약 대시보드
             st.subheader("📌 핵심 성과 지표")
             m1, m2, m3, m4 = st.columns(4)
             profit_color = "#FF4B4B" if total_profit >= 0 else "#1C83E1"
 
-            metrics = [
-                ("최종 실질 순이익", f"{total_profit:,.0f}원", profit_color),
-                ("총 광고비", f"{tot['광고비']:,.0f}원", "#31333F"),
-                ("실제 ROAS", f"{total_real_roas:.2%}", "#31333F"),
-                ("총 판매수량", f"{tot['판매수량']:,.0f}개", "#31333F")
-            ]
-            
-            for col, (label, value, color) in zip([m1, m2, m3, m4], metrics):
-                col.markdown(f"""<div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; text-align: center;">
-                    <p style="margin:0; font-size:14px; color:#555;">{label}</p>
-                    <h2 style="margin:0; color:{color};">{value}</h2>
-                </div>""", unsafe_allow_html=True)
+            box_style = """<div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #ddd;">
+                <p style="margin:0; font-size:14px; color:#555;">{label}</p>
+                <h2 style="margin:0; color:{color};">{value}</h2>
+            </div>"""
+
+            m1.markdown(box_style.format(label="최종 실질 순이익", color=profit_color, value=f"{total_profit:,.0f}원"), unsafe_allow_html=True)
+            m2.markdown(box_style.format(label="총 광고비", color="#31333F", value=f"{tot['광고비']:,.0f}원"), unsafe_allow_html=True)
+            m3.markdown(box_style.format(label="실제 ROAS", color="#31333F", value=f"{total_real_roas:.2%}"), unsafe_allow_html=True)
+            m4.markdown(box_style.format(label="총 판매수량", color="#31333F", value=f"{tot['판매수량']:,.0f}개"), unsafe_allow_html=True)
 
             # 6. 상세 분석 표
             st.write("")
@@ -114,62 +109,28 @@ if uploaded_file is not None:
                     return f'color: {color}; font-weight: bold;'
                 return ''
 
-            st.dataframe(display_df.style.format({
+            st.dataframe(summary.style.format({
                 '노출수': '{:,.0f}', '클릭수': '{:,.0f}', '광고비': '{:,.0f}원', 
                 '판매수량': '{:,.0f}', '실제매출액': '{:,.0f}원', 'CPC': '{:,.0f}원',
                 '클릭률(CTR)': '{:.2%}', '구매전환율(CVR)': '{:.2%}', '실제ROAS': '{:.2%}',
                 '실질순이익': '{:,.0f}원'
             }).applymap(color_profit, subset=['실질순이익']), use_container_width=True)
 
-            # 7. 돈먹는 키워드 (보고서에 '키워드' 컬럼이 있을 때만 표시)
-            if '키워드' in df.columns:
-                st.divider()
-                st.subheader("✂️ 돈먹는 키워드 (제외 대상)")
-                kw_agg = df.groupby('키워드').agg({'광고비': 'sum', col_qty: 'sum'}).reset_index()
-                bad_mask = (kw_agg['광고비'] > 0) & (kw_agg[col_qty] == 0)
-                bad_kws = kw_agg[bad_mask].sort_values(by='광고비', ascending=False)
-
-                if not bad_kws.empty:
-                    st.error(f"⚠️ 총 **{len(bad_kws)}개**의 키워드가 매출 없이 광고비만 쓰고 있습니다.")
-                    st.text_area("📋 제외 키워드 목록:", value=", ".join(bad_kws['키워드'].tolist()), height=100)
-                    st.dataframe(bad_kws.style.format({'광고비': '{:,.0f}원', col_qty: '{:,.0f}개'}), use_container_width=True)
-
-            # 8. 훈프로의 정밀 운영 제안
+            # 7. 훈프로 제안
             st.divider()
             st.subheader("💡 훈프로의 정밀 운영 제안")
-            col1, col2, col3 = st.columns(3)
-
-            with col1:
-                st.info("🖼️ **CTR 분석 (썸네일)**")
-                ctr_val = total_data['클릭률(CTR)']
-                st.write(f"- 현재 CTR: **{ctr_val:.2%}**")
-                if ctr_val < 0.01:
-                    st.write("- **진단**: 클릭률이 낮습니다. 썸네일 교체가 필요합니다.")
-                else:
-                    st.write("- **진단**: 클릭률이 좋습니다. 현재 이미지 유지.")
-
-            with col2:
-                st.warning("🛒 **CVR 분석 (상세페이지)**")
-                cvr_val = total_data['구매전환율(CVR)']
-                st.write(f"- 현재 CVR: **{cvr_val:.2%}**")
-                if cvr_val < 0.05:
-                    st.write("- **진단**: 상세페이지 설득력이 부족합니다.")
-                else:
-                    st.write("- **진단**: 전환율이 훌륭합니다.")
-
-            with col3:
-                st.error("💰 **목표수익률 가이드**")
-                st.write(f"- 실제 ROAS: **{total_real_roas:.2%}**")
-                if total_real_roas < 2.0:
-                    st.write("🔴 **목표수익률 100~200%p 즉시 상향하세요.**")
-                elif total_real_roas < 4.0:
-                    st.write("🟡 **목표수익률 30~50%p 상향하세요.**")
-                else:
-                    st.write("🚀 **수익성 최고! 목표수익률을 낮춰 매출을 키우세요.**")
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                ctr = tot['클릭수']/tot['노출수'] if tot['노출수']>0 else 0
+                st.info(f"🖼️ CTR: {ctr:.2%}\n\n1% 미만일 경우 썸네일 교체가 필수입니다.")
+            with c2:
+                cvr = tot['판매수량']/tot['클릭수'] if tot['클릭수']>0 else 0
+                st.warning(f"🛒 CVR: {cvr:.2%}\n\n5% 미만일 경우 상세페이지를 점검하세요.")
+            with c3:
+                st.error(f"💰 목표수익률 가이드\n\n현재 실제 ROAS는 {total_real_roas:.2%}입니다. 수익성에 따라 목표 설정을 30~100%p 조절하세요.")
 
     except Exception as e:
         st.error(f"데이터 처리 중 오류 발생: {e}")
 
-# 푸터
 st.divider()
 st.markdown("<div style='text-align: center;'><a href='https://hoonpro.liveklass.com/' target='_blank'>🏠 쇼크트리 훈프로 홈페이지 바로가기</a></div>", unsafe_allow_html=True)

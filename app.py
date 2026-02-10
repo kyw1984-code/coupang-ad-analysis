@@ -30,18 +30,18 @@ if uploaded_file is not None:
             df = pd.read_excel(uploaded_file, engine='openpyxl')
 
         # 데이터 전처리: 컬럼명 공백 제거
-        df.columns = df.columns.str.strip()
+        df.columns = [str(c).strip() for c in df.columns]
 
         # 컬럼명 대응 (14일/1일 기준)
-        col_qty = '총 판매수량(14일)' if '총 판매수량(14일)' in df.columns else '총 판매수량(1일)'
+        col_qty = next((c for c in ['총 판매수량(14일)', '총 판매수량(1일)', '총 판매수량'] if c in df.columns), None)
 
-        if '광고 노출 지면' in df.columns:
+        if '광고 노출 지면' in df.columns and col_qty:
             # 4. 데이터 요약 분석
             target_cols = {'노출수': 'sum', '클릭수': 'sum', '광고비': 'sum', col_qty: 'sum'}
             summary = df.groupby('광고 노출 지면').agg(target_cols).reset_index()
             summary.columns = ['지면', '노출수', '클릭수', '광고비', '판매수량']
 
-            # 실제 매출액 및 실제 ROAS 계산 (사용자 입력 판매가 기준)
+            # 실제 매출액 및 실제 ROAS 계산
             summary['실제매출액'] = summary['판매수량'] * unit_price
             summary['실제ROAS'] = (summary['실제매출액'] / summary['광고비']).fillna(0)
             summary['클릭률(CTR)'] = (summary['클릭수'] / summary['노출수']).fillna(0)
@@ -81,7 +81,7 @@ if uploaded_file is not None:
             ]
             
             for col, (label, value, color) in zip([m1, m2, m3, m4], metrics):
-                col.markdown(f"""<div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; text-align: center;">
+                col.markdown(f"""<div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; text-align: center; min-height: 100px;">
                     <p style="margin:0; font-size:14px; color:#555;">{label}</p>
                     <h2 style="margin:0; color:{color};">{value}</h2>
                 </div>""", unsafe_allow_html=True)
@@ -103,28 +103,51 @@ if uploaded_file is not None:
                 '실질순이익': '{:,.0f}원'
             }).applymap(color_profit, subset=['실질순이익']), use_container_width=True)
 
-            # 7. 광고비 도둑 키워드
-            st.divider()
-            st.subheader("✂️ 돈먹는 키워드 (제외 대상 제안)")
+            # --- 7. 돈되는 키워드 & 돈먹는 키워드 분석 ---
             if '키워드' in df.columns:
-                kw_agg = df.groupby('키워드').agg({'광고비': 'sum', col_qty: 'sum'}).reset_index()
-                bad_mask = (kw_agg['광고비'] > 0) & (kw_agg[col_qty] == 0)
-                bad_kws = kw_agg[bad_mask].sort_values(by='광고비', ascending=False)
+                kw_agg_all = df.groupby('키워드').agg({'광고비': 'sum', col_qty: 'sum', '노출수': 'sum', '클릭수': 'sum'}).reset_index()
+                kw_agg_all.columns = ['키워드', '광고비', '판매수량', '노출수', '클릭수']
+                
+                kw_agg_all['실제매출액'] = kw_agg_all['판매수량'] * unit_price
+                kw_agg_all['실제ROAS'] = (kw_agg_all['실제매출액'] / kw_agg_all['광고비']).fillna(0)
+                kw_agg_all['실질순이익'] = (kw_agg_all['판매수량'] * net_unit_margin) - kw_agg_all['광고비']
+                
+                # [돈되는 키워드] 플러스 순이익 발생 & 광고비 높은 순
+                st.divider()
+                st.subheader("💰 돈되는 키워드 (효자 키워드)")
+                good_kws = kw_agg_all[(kw_agg_all['판매수량'] > 0) & (kw_agg_all['실질순이익'] >= 0)].sort_values(by='광고비', ascending=False)
+                
+                if not good_kws.empty:
+                    st.success(f"✅ 현재 총 **{len(good_kws)}개**의 키워드에서 플러스 순이익이 발생하고 있습니다.")
+                    st.dataframe(good_kws.style.format({
+                        '광고비': '{:,.0f}원', '판매수량': '{:,.0f}개', '실제매출액': '{:,.0f}원', 
+                        '실제ROAS': '{:.2%}', '실질순이익': '{:,.0f}원', '노출수': '{:,.0f}', '클릭수': '{:,.0f}'
+                    }).applymap(color_profit, subset=['실질순이익']), use_container_width=True)
+                else:
+                    st.info("플러스 순이익이 발생한 키워드가 아직 없습니다.")
+
+                # [돈먹는 키워드]
+                st.divider()
+                st.subheader("✂️ 돈먹는 키워드 (제외 대상 제안)")
+                bad_mask = (kw_agg_all['광고비'] > 0) & (kw_agg_all['판매수량'] == 0)
+                bad_kws = kw_agg_all[bad_mask].sort_values(by='광고비', ascending=False)
 
                 if not bad_kws.empty:
                     total_waste_spend = bad_kws['광고비'].sum()
                     st.error(f"⚠️ 현재 총 **{len(bad_kws)}개**의 키워드가 매출 없이 **{total_waste_spend:,.0f}원**의 광고비를 소진했습니다.")
                     bad_names = bad_kws['키워드'].astype(str).tolist()
                     st.text_area("📋 아래 키워드를 복사 후 '제외 키워드'에 등록하세요:", value=", ".join(bad_names), height=120)
-                    st.dataframe(bad_kws.style.format({'광고비': '{:,.0f}원', col_qty: '{:,.0f}개'}), use_container_width=True)
+                    st.dataframe(bad_kws[['키워드', '광고비', '판매수량', '노출수', '클릭수']].style.format({
+                        '광고비': '{:,.0f}원', '판매수량': '{:,.0f}개', '노출수': '{:,.0f}', '클릭수': '{:,.0f}'
+                    }), use_container_width=True)
 
-            # 8. 훈프로의 정밀 운영 제안 (기존 상세 버전 복구)
+            # --- 8. 훈프로의 정밀 운영 제안 (기존 상세 버전) ---
             st.divider()
             st.subheader("💡 훈프로의 정밀 운영 제안")
             col1, col2, col3 = st.columns(3)
 
             with col1:
-                st.info("🖼️ **CTR 분석 (썸네일)**")
+                st.info("🖼️ **클릭률(CTR) 분석 (썸네일)**")
                 ctr_val = total_data['클릭률(CTR)']
                 st.write(f"- **현재 CTR: {ctr_val:.2%}**")
                 if ctr_val < 0.01:
@@ -134,7 +157,7 @@ if uploaded_file is not None:
                     st.write("- **상태**: 시각적 매력이 충분합니다. 클릭률을 유지하며 공격적인 노출을 시도하세요.")
 
             with col2:
-                st.warning("🛒 **CVR 분석 (상세페이지)**")
+                st.warning("🛒 **구매전환율(CVR) 분석 (상세페이지)**")
                 cvr_val = total_data['구매전환율(CVR)']
                 st.write(f"- **현재 CVR: {cvr_val:.2%}**")
                 if cvr_val < 0.05:
@@ -169,10 +192,11 @@ if uploaded_file is not None:
                     st.write("- **목표수익률 조정**: 더 많은 노출을 위해 **목표수익률을 과감하게 50%p~100%p 하향**하세요.")
                     st.write("- **운영**: 일 예산을 증액하고 검색 노출 순위를 압도적인 상위권으로 끌어올리세요.")
         else:
-            st.warning("⚠️ 업로드된 파일에 '광고 노출 지면' 컬럼이 없습니다. 쿠팡 광고 보고서 원본을 올려주세요.")
+            st.warning("⚠️ 업로드된 파일 형식이 맞지 않거나 필수 컬럼('광고 노출 지면', '판매수량')이 부족합니다.")
 
     except Exception as e:
         st.error(f"데이터 처리 중 오류 발생: {e}")
 
+# 푸터
 st.divider()
 st.markdown("<div style='text-align: center;'><a href='https://hoonpro.liveklass.com/' target='_blank'>🏠 쇼크트리 훈프로 홈페이지 바로가기</a></div>", unsafe_allow_html=True)

@@ -103,22 +103,48 @@ if uploaded_file is not None:
                 '실질순이익': '{:,.0f}원'
             }).applymap(color_profit, subset=['실질순이익']), use_container_width=True)
 
-            # 7. 광고비 도둑 키워드
-            st.divider()
-            st.subheader("✂️ 돈먹는 키워드 (제외 대상 제안)")
+            # --- [추가된 섹션] 7. 돈되는 키워드 ---
             if '키워드' in df.columns:
-                kw_agg = df.groupby('키워드').agg({'광고비': 'sum', col_qty: 'sum'}).reset_index()
-                bad_mask = (kw_agg['광고비'] > 0) & (kw_agg[col_qty] == 0)
-                bad_kws = kw_agg[bad_mask].sort_values(by='광고비', ascending=False)
+                st.divider()
+                st.subheader("💰 돈되는 키워드 (효자 상품군)")
+                
+                # 키워드별 집계
+                kw_agg_all = df.groupby('키워드').agg({'광고비': 'sum', col_qty: 'sum', '노출수': 'sum', '클릭수': 'sum'}).reset_index()
+                kw_agg_all.columns = ['키워드', '광고비', '판매수량', '노출수', '클릭수']
+                
+                # 성과 지표 계산
+                kw_agg_all['실제매출액'] = kw_agg_all['판매수량'] * unit_price
+                kw_agg_all['실제ROAS'] = (kw_agg_all['실제매출액'] / kw_agg_all['광고비']).fillna(0)
+                kw_agg_all['실질순이익'] = (kw_agg_all['판매수량'] * net_unit_margin) - kw_agg_all['광고비']
+                
+                # 판매가 발생한 키워드 필터링
+                good_kws = kw_agg_all[kw_agg_all['판매수량'] > 0].sort_values(by='판매수량', ascending=False)
+                
+                if not good_kws.empty:
+                    st.success(f"✅ 현재 총 **{len(good_kws)}개**의 키워드에서 매출이 발생하고 있습니다. 이 키워드들을 집중 관리하세요!")
+                    st.dataframe(good_kws.style.format({
+                        '광고비': '{:,.0f}원', '판매수량': '{:,.0f}개', '실제매출액': '{:,.0f}원', 
+                        '실제ROAS': '{:.2%}', '실질순이익': '{:,.0f}원', '노출수': '{:,.0f}', '클릭수': '{:,.0f}'
+                    }).applymap(color_profit, subset=['실질순이익']), use_container_width=True)
+                else:
+                    st.info("아직 매출이 발생한 키워드가 없습니다.")
+
+                # 8. 광고비 도둑 키워드 (기존 코드 유지)
+                st.divider()
+                st.subheader("✂️ 돈먹는 키워드 (제외 대상 제안)")
+                bad_mask = (kw_agg_all['광고비'] > 0) & (kw_agg_all['판매수량'] == 0)
+                bad_kws = kw_agg_all[bad_mask].sort_values(by='광고비', ascending=False)
 
                 if not bad_kws.empty:
                     total_waste_spend = bad_kws['광고비'].sum()
                     st.error(f"⚠️ 현재 총 **{len(bad_kws)}개**의 키워드가 매출 없이 **{total_waste_spend:,.0f}원**의 광고비를 소진했습니다.")
                     bad_names = bad_kws['키워드'].astype(str).tolist()
                     st.text_area("📋 아래 키워드를 복사 후 '제외 키워드'에 등록하세요:", value=", ".join(bad_names), height=120)
-                    st.dataframe(bad_kws.style.format({'광고비': '{:,.0f}원', col_qty: '{:,.0f}개'}), use_container_width=True)
+                    st.dataframe(bad_kws[['키워드', '광고비', '판매수량', '노출수', '클릭수']].style.format({
+                        '광고비': '{:,.0f}원', '판매수량': '{:,.0f}개', '노출수': '{:,.0f}', '클릭수': '{:,.0f}'
+                    }), use_container_width=True)
 
-            # 8. 훈프로의 정밀 운영 제안 (기존 상세 버전 복구)
+            # 9. 훈프로의 정밀 운영 제안
             st.divider()
             st.subheader("💡 훈프로의 정밀 운영 제안")
             col1, col2, col3 = st.columns(3)
@@ -174,5 +200,6 @@ if uploaded_file is not None:
     except Exception as e:
         st.error(f"데이터 처리 중 오류 발생: {e}")
 
+# 푸터
 st.divider()
 st.markdown("<div style='text-align: center;'><a href='https://hoonpro.liveklass.com/' target='_blank'>🏠 쇼크트리 훈프로 홈페이지 바로가기</a></div>", unsafe_allow_html=True)

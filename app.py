@@ -41,7 +41,7 @@ if uploaded_file is not None:
             summary = df.groupby('광고 노출 지면').agg(target_cols).reset_index()
             summary.columns = ['지면', '노출수', '클릭수', '광고비', '판매수량']
 
-            # 실제 매출액 및 실제 ROAS 계산 (사용자 입력 판매가 기준)
+            # 실제 매출 및 ROAS 계산
             summary['실제매출액'] = summary['판매수량'] * unit_price
             summary['실제ROAS'] = (summary['실제매출액'] / summary['광고비']).fillna(0)
             summary['클릭률(CTR)'] = (summary['클릭수'] / summary['노출수']).fillna(0)
@@ -86,10 +86,10 @@ if uploaded_file is not None:
                     <h2 style="margin:0; color:{color};">{value}</h2>
                 </div>""", unsafe_allow_html=True)
 
-            st.write("")
-
             # 6. 지면별 상세 분석
+            st.write("")
             st.subheader("📍 지면별 상세 분석")
+            
             def color_profit(val):
                 if isinstance(val, (int, float)):
                     color = 'red' if val >= 0 else 'blue'
@@ -115,13 +115,51 @@ if uploaded_file is not None:
                     total_waste_spend = bad_kws['광고비'].sum()
                     st.error(f"⚠️ 현재 총 **{len(bad_kws)}개**의 키워드가 매출 없이 **{total_waste_spend:,.0f}원**의 광고비를 소진했습니다.")
                     bad_names = bad_kws['키워드'].astype(str).tolist()
-                    st.text_area("📋 아래 키워드를 복사 후 '제외 키워드'에 등록하세요:", value=", ".join(bad_names), height=120)
+                    st.text_area("📋 제외 키워드 목록:", value=", ".join(bad_names), height=100)
                     st.dataframe(bad_kws.style.format({'광고비': '{:,.0f}원', col_qty: '{:,.0f}개'}), use_container_width=True)
 
-            # 8. 훈프로의 정밀 운영 제안 (기존 상세 버전 복구)
+            # 8. 훈프로의 정밀 운영 제안
             st.divider()
             st.subheader("💡 훈프로의 정밀 운영 제안")
             col1, col2, col3 = st.columns(3)
 
             with col1:
                 st.info("🖼️ **CTR 분석 (썸네일)**")
+                ctr_val = total_data['클릭률(CTR)']
+                st.write(f"- **현재 CTR: {ctr_val:.2%}**")
+                if ctr_val < 0.01:
+                    st.write("- **상태**: 낮은 클릭률. 썸네일 개선이 시급합니다.")
+                else:
+                    st.write("- **상태**: 클릭률 양호. 현재 이미지를 유지하세요.")
+
+            with col2:
+                st.warning("🛒 **CVR 분석 (상세페이지)**")
+                cvr_val = total_data['구매전환율(CVR)']
+                st.write(f"- **현재 CVR: {cvr_val:.2%}**")
+                if cvr_val < 0.05:
+                    st.write("- **상태**: 전환율 부족. 상세페이지 소구점을 보완하세요.")
+                else:
+                    st.write("- **상태**: 전환 능력 탁월. 유입 확대에 집중하세요.")
+
+            with col3:
+                st.error("💰 **목표수익률 최적화 가이드**")
+                st.write(f"- **현재 실제 ROAS: {total_real_roas:.2%}**")
+                if total_real_roas < 2.0:
+                    st.write("🔴 **목표수익률을 즉시 100~200%p 상향 설정하세요.**")
+                elif total_real_roas < 4.0:
+                    st.write("🟡 **목표수익률을 30~50%p 상향하여 누수를 막으세요.**")
+                elif total_real_roas < 6.0:
+                    st.write("🟢 **안정적인 상태입니다. 현재 설정을 유지하세요.**")
+                else:
+                    st.write("🚀 **효율 극상! 목표수익률을 50~100%p 하향하여 볼륨을 키우세요.**")
+
+        else:
+            st.warning("⚠️ 업로드된 파일에 '광고 노출 지면' 컬럼이 없습니다. 올바른 보고서인지 확인해주세요.")
+
+    except Exception as e:
+        # 이 부분이 누락되거나 구조가 깨지면 SyntaxError가 발생합니다.
+        st.error(f"데이터 처리 중 오류 발생: {e}")
+
+# 푸터
+st.divider()
+st.markdown("<div style='text-align: center;'><a href='https://hoonpro.liveklass.com/' target='_blank'>🏠 쇼크트리 훈프로 홈페이지 바로가기</a></div>", unsafe_allow_html=True)

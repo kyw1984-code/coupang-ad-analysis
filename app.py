@@ -12,7 +12,7 @@ unit_price = st.sidebar.number_input("상품 판매가 (원)", min_value=0, valu
 unit_cost = st.sidebar.number_input("최종원가(물류비+세금등) (원)", min_value=0, value=0, step=100)
 
 # 쿠팡 수수료 입력 추가 (%)
-coupang_fee_rate = st.sidebar.number_input("쿠팡 수수료 (%)", min_value=0.0, max_value=100.0, value=11.5, step=0.1)
+coupang_fee_rate = st.sidebar.number_input("쿠팡 수수료(vat포함) (%)", min_value=0.0, max_value=100.0, value=11.5, step=0.1)
 
 # 수수료 금액 계산 (판매가 * 수수료율)
 total_fee_amount = unit_price * (coupang_fee_rate / 100)

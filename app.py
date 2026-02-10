@@ -37,6 +37,11 @@ if uploaded_file is not None:
         col_qty = next((c for c in qty_targets if c in df.columns), None)
 
         if '광고 노출 지면' in df.columns and col_qty:
+            # 수치 데이터 내 '-' 문자 제거 및 숫자 변환
+            for col in ['노출수', '클릭수', '광고비', col_qty]:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', '').replace('-', '0'), errors='coerce').fillna(0)
+
             # 4. 데이터 요약 분석
             target_cols = {'노출수': 'sum', '클릭수': 'sum', '광고비': 'sum', col_qty: 'sum'}
             summary = df.groupby('광고 노출 지면').agg(target_cols).reset_index()
@@ -104,8 +109,10 @@ if uploaded_file is not None:
                 '실질순이익': '{:,.0f}원'
             }).applymap(color_profit, subset=['실질순이익']), use_container_width=True)
 
-            # --- 7. 판매 발생 키워드 (순이익 마이너스 행 제거) ---
+            # --- 7. 판매 발생 키워드 (전체) ---
             if '키워드' in df.columns:
+                # 키워드별 데이터 정리 및 '-' 제거
+                df['키워드'] = df['키워드'].fillna('미식별')
                 kw_agg_all = df.groupby('키워드').agg({
                     '광고비': 'sum', col_qty: 'sum', '노출수': 'sum', '클릭수': 'sum'
                 }).reset_index()
@@ -115,24 +122,25 @@ if uploaded_file is not None:
                 kw_agg_all['실제ROAS'] = (kw_agg_all['실제매출액'] / kw_agg_all['광고비']).fillna(0)
                 kw_agg_all['실질순이익'] = (kw_agg_all['판매수량'] * net_unit_margin) - kw_agg_all['광고비']
                 
-                # [핵심 수정] 판매수량이 0보다 크고, 실질순이익이 0 이상인 데이터만 필터링 (마이너스 행 삭제)
+                # [수정된 부분] 판매수량이 0보다 큰 모든 키워드 표시 (수익 마이너스 포함)
+                # 단, 키워드명이 '-' 인 경우는 제외
                 st.divider()
-                st.subheader("💰 판매 발생 키워드 (순수익 발생 항목)")
-                good_kws = kw_agg_all[(kw_agg_all['판매수량'] > 0) & (kw_agg_all['실질순이익'] >= 0)].sort_values(by='광고비', ascending=False)
+                st.subheader("💰 판매 발생 키워드 (전체)")
+                good_kws = kw_agg_all[(kw_agg_all['판매수량'] > 0) & (kw_agg_all['키워드'] != '-')].sort_values(by='판매수량', ascending=False)
                 
                 if not good_kws.empty:
-                    st.success(f"✅ 현재 총 **{len(good_kws)}개**의 키워드에서 플러스 순이익이 발생했습니다.")
+                    st.success(f"✅ 현재 총 **{len(good_kws)}개**의 키워드에서 판매가 발생했습니다.")
                     st.dataframe(good_kws.style.format({
                         '광고비': '{:,.0f}원', '판매수량': '{:,.0f}개', '실제매출액': '{:,.0f}원', 
                         '실제ROAS': '{:.2%}', '실질순이익': '{:,.0f}원', '노출수': '{:,.0f}', '클릭수': '{:,.0f}'
                     }).applymap(color_profit, subset=['실질순이익']), use_container_width=True)
                 else:
-                    st.info("판매가 발생하고 순이익이 0원 이상인 키워드가 아직 없습니다.")
+                    st.info("판매가 발생한 키워드가 아직 없습니다.")
 
                 # [돈먹는 키워드] 광고비 소진만 있고 판매 0
                 st.divider()
                 st.subheader("✂️ 돈먹는 키워드 (제외 대상 제안)")
-                bad_mask = (kw_agg_all['광고비'] > 0) & (kw_agg_all['판매수량'] == 0)
+                bad_mask = (kw_agg_all['광고비'] > 0) & (kw_agg_all['판매수량'] == 0) & (kw_agg_all['키워드'] != '-')
                 bad_kws = kw_agg_all[bad_mask].sort_values(by='광고비', ascending=False)
 
                 if not bad_kws.empty:
@@ -177,23 +185,17 @@ if uploaded_file is not None:
                     st.write("🔴 **[긴급] 손실 구간 (비상)**")
                     st.write("- **분석**: 무분별한 노출로 자금이 누수되고 있습니다.")
                     st.write("- **목표수익률 조정**: 광고 설정의 **'목표수익률'을 최소 100%p~200%p 즉시 상향**하세요.")
-                    st.write("- **운영**: 매출 없는 '돈먹는 키워드'를 1순위로 제외하세요.")
-                
                 elif 2.0 <= total_real_roas < 4.0:
                     st.write("🟡 **[주의] 저효율 구간**")
                     st.write("- **분석**: 수수료와 원가를 빼면 남는 것이 거의 없습니다.")
                     st.write("- **목표수익률 조정**: **목표수익률을 30~50%p 상향**하여 보수적으로 운영하세요.")
-                
                 elif 4.0 <= total_real_roas < 6.0:
                     st.write("🟢 **[안정] 수익 유지 구간**")
-                    st.write("- **분석**: 수익과 외형 확장의 균형이 잘 잡혀 있는 건강한 상태입니다.")
                     st.write("- **전략**: 현재 설정을 유지하거나, 매출 확대를 위해 10%p씩 미세 하향하며 테스트하세요.")
-                
                 else:
                     st.write("🚀 **[확장] 고효율 성장 구간**")
                     st.write("- **분석**: 광고 효율이 극상입니다. 시장 독점 기회입니다.")
                     st.write("- **목표수익률 조정**: 더 많은 노출을 위해 **목표수익률을 과감하게 50%p~100%p 하향**하세요.")
-                    st.write("- **운영**: 일 예산을 증액하고 검색 노출 순위를 압도적인 상위권으로 끌어올리세요.")
     except Exception as e:
         st.error(f"데이터 처리 중 오류 발생: {e}")
 

@@ -8,8 +8,8 @@ st.markdown("쿠팡 보고서(CSV 또는 XLSX)를 업로드하면 훈프로의 �
 
 # --- 2. 사이드바: 수익성 계산 설정 ---
 st.sidebar.header("💰 마진 계산 설정")
-unit_price = st.sidebar.number_input("상품 판매가 (원)", min_value=0, value=20000, step=100)
-unit_cost = st.sidebar.number_input("원가 + 수수료 등 지출 (원)", min_value=0, value=12000, step=100)
+unit_price = st.sidebar.number_input("상품 판매가 (원)", min_value=0, value=0, step=100)
+unit_cost = st.sidebar.number_input("원가 + 수수료 등 지출 (원)", min_value=0, value=0, step=100)
 
 net_unit_margin = unit_price - unit_cost
 st.sidebar.divider()

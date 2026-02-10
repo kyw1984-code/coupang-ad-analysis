@@ -114,7 +114,7 @@ if uploaded_file is not None:
                 
                 # [돈되는 키워드] 플러스 순이익 발생 & 광고비 높은 순
                 st.divider()
-                st.subheader("💰 돈되는 키워드 (순이익 발생)")
+                st.subheader("💰 돈되는 키워드 (효자 키워드)")
                 good_kws = kw_agg_all[(kw_agg_all['판매수량'] > 0) & (kw_agg_all['실질순이익'] >= 0)].sort_values(by='광고비', ascending=False)
                 
                 if not good_kws.empty:
@@ -147,7 +147,7 @@ if uploaded_file is not None:
             col1, col2, col3 = st.columns(3)
 
             with col1:
-                st.info("🖼️ **CTR 분석 (썸네일)**")
+                st.info("🖼️ **클릭률(CTR) 분석 (썸네일)**")
                 ctr_val = total_data['클릭률(CTR)']
                 st.write(f"- **현재 CTR: {ctr_val:.2%}**")
                 if ctr_val < 0.01:
@@ -157,7 +157,7 @@ if uploaded_file is not None:
                     st.write("- **상태**: 시각적 매력이 충분합니다. 클릭률을 유지하며 공격적인 노출을 시도하세요.")
 
             with col2:
-                st.warning("🛒 **CVR 분석 (상세페이지)**")
+                st.warning("🛒 **구매전환율(CVR) 분석 (상세페이지)**")
                 cvr_val = total_data['구매전환율(CVR)']
                 st.write(f"- **현재 CVR: {cvr_val:.2%}**")
                 if cvr_val < 0.05:

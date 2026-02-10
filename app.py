@@ -32,7 +32,7 @@ if uploaded_file is not None:
         # 데이터 전처리: 컬럼명 공백 제거
         df.columns = [str(c).strip() for c in df.columns]
 
-        # 판매수량 컬럼 통합 검색 (다양한 쿠팡 보고서 양식 대응)
+        # 판매수량 컬럼 통합 검색
         qty_targets = ['총 판매수량(14일)', '총 판매수량(1일)', '총 판매수량', '전환 판매수량', '판매수량']
         col_qty = next((c for c in qty_targets if c in df.columns), None)
 
@@ -42,7 +42,7 @@ if uploaded_file is not None:
             summary = df.groupby('광고 노출 지면').agg(target_cols).reset_index()
             summary.columns = ['지면', '노출수', '클릭수', '광고비', '판매수량']
 
-            # 실제 매출액 및 실제 ROAS 계산 (사용자 입력 판매가 기준)
+            # 실제 매출액 및 실제 ROAS 계산
             summary['실제매출액'] = summary['판매수량'] * unit_price
             summary['실제ROAS'] = (summary['실제매출액'] / summary['광고비']).fillna(0)
             summary['클릭률(CTR)'] = (summary['클릭수'] / summary['노출수']).fillna(0)
@@ -53,7 +53,7 @@ if uploaded_file is not None:
             # 전체 합계 계산
             tot = summary.sum(numeric_only=True)
             total_real_revenue = tot['판매수량'] * unit_price
-            total_real_roas = total_real_revenue / tot['광고비'] if tot['광고비'] > 0 else 0
+            total_real_roas = total_real_revenue / tot['광고비'] if tot['광비'] > 0 else 0
             total_profit = (tot['판매수량'] * net_unit_margin) - tot['광고비']
             
             total_data = {
@@ -89,7 +89,7 @@ if uploaded_file is not None:
 
             st.write("")
 
-            # 6. 상세 분석 표 스타일링 (빨강/파랑 색상 구분)
+            # 6. 상세 분석 표 스타일링
             def color_profit(val):
                 if isinstance(val, (int, float)):
                     color = 'red' if val >= 0 else 'blue'
@@ -104,7 +104,7 @@ if uploaded_file is not None:
                 '실질순이익': '{:,.0f}원'
             }).applymap(color_profit, subset=['실질순이익']), use_container_width=True)
 
-            # --- 7. 돈되는 키워드 & 돈먹는 키워드 분석 ---
+            # --- 7. 판매 발생 키워드 & 돈먹는 키워드 분석 ---
             if '키워드' in df.columns:
                 kw_agg_all = df.groupby('키워드').agg({
                     '광고비': 'sum', col_qty: 'sum', '노출수': 'sum', '클릭수': 'sum'
@@ -115,21 +115,21 @@ if uploaded_file is not None:
                 kw_agg_all['실제ROAS'] = (kw_agg_all['실제매출액'] / kw_agg_all['광고비']).fillna(0)
                 kw_agg_all['실질순이익'] = (kw_agg_all['판매수량'] * net_unit_margin) - kw_agg_all['광고비']
                 
-                # [수정된 부분] 돈되는 키워드: 판매수량이 1개 이상이면서 '실질순이익'이 0원 이상인 것만 필터링
+                # [수정 포인트] 판매수량 > 0 인 모든 키워드 표시 (마이너스 포함)
                 st.divider()
-                st.subheader("💰 돈되는 키워드 (수익 발생 키워드)")
-                good_kws = kw_agg_all[(kw_agg_all['판매수량'] > 0) & (kw_agg_all['실질순이익'] >= 0)].sort_values(by='광고비', ascending=False)
+                st.subheader("💰 판매 발생 키워드 (성과 분석)")
+                good_kws = kw_agg_all[kw_agg_all['판매수량'] > 0].sort_values(by='광고비', ascending=False)
                 
                 if not good_kws.empty:
-                    st.success(f"✅ 현재 총 **{len(good_kws)}개**의 키워드에서 플러스 순이익이 발생하고 있습니다.")
+                    st.info(f"✅ 현재 총 **{len(good_kws)}개**의 키워드에서 판매가 발생했습니다. (수익 현황을 확인하세요!)")
                     st.dataframe(good_kws.style.format({
                         '광고비': '{:,.0f}원', '판매수량': '{:,.0f}개', '실제매출액': '{:,.0f}원', 
                         '실제ROAS': '{:.2%}', '실질순이익': '{:,.0f}원', '노출수': '{:,.0f}', '클릭수': '{:,.0f}'
                     }).applymap(color_profit, subset=['실질순이익']), use_container_width=True)
                 else:
-                    st.info("판매가 발생하고 순이익이 0원 이상인 키워드가 아직 없습니다.")
+                    st.info("판매가 발생한 키워드가 아직 없습니다.")
 
-                # [돈먹는 키워드] 광고비 소진만 있고 판매 0
+                # [돈먹는 키워드]
                 st.divider()
                 st.subheader("✂️ 돈먹는 키워드 (제외 대상 제안)")
                 bad_mask = (kw_agg_all['광고비'] > 0) & (kw_agg_all['판매수량'] == 0)
@@ -200,6 +200,5 @@ if uploaded_file is not None:
     except Exception as e:
         st.error(f"데이터 처리 중 오류 발생: {e}")
 
-# 푸터
 st.divider()
 st.markdown("<div style='text-align: center;'><a href='https://hoonpro.liveklass.com/' target='_blank'>🏠 쇼크트리 훈프로 홈페이지 바로가기</a></div>", unsafe_allow_html=True)

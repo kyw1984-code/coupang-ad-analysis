@@ -1,21 +1,10 @@
 import streamlit as st
 import pandas as pd
-import subprocess
-import sys
-
-# 필수 라이브러리 체크 (환경에 따라 자동 설치 시도)
-try:
-    import openpyxl
-except ImportError:
-    st.warning("엑셀 처리를 위한 필수 라이브러리를 설치 중입니다...")
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "openpyxl"])
-    st.success("설치 완료! 페이지를 다시 로드합니다.")
-    st.rerun()
 
 # 1. 페이지 설정
 st.set_page_config(page_title="훈프로 쿠팡 광고 분석기", layout="wide")
 st.title("📊 쇼크트리 훈프로 쿠팡 광고 성과 분석기")
-st.markdown("쿠팡 보고서(CSV 또는 XLSX)를 업로드하면 훈프로의 정밀 운영 전략이 생성됩니다.")
+st.markdown("쿠팡 보고서(CSV 또는 XLSX)를 업로드하면 훈프로의 정밀 운영 전략이 자동으로 생성됩니다.")
 
 # --- 2. 사이드바: 수익성 계산 설정 ---
 st.sidebar.header("💰 마진 계산 설정")
@@ -26,19 +15,18 @@ net_unit_margin = unit_price - unit_cost
 st.sidebar.divider()
 st.sidebar.write(f"**💡 개당 예상 마진:** {net_unit_margin:,.0f}원")
 
-# 3. 파일 업로드 (xlsx와 csv 모두 허용)
+# 3. 파일 업로드
 uploaded_file = st.file_uploader("보고서 파일을 선택하세요 (CSV 또는 XLSX)", type=['csv', 'xlsx'])
 
 if uploaded_file is not None:
     try:
-        # 파일 확장자에 따른 읽기 방식 처리
+        # 파일 확장자에 따른 읽기 방식
         if uploaded_file.name.endswith('.csv'):
             try:
                 df = pd.read_csv(uploaded_file, encoding='utf-8-sig')
             except:
                 df = pd.read_csv(uploaded_file, encoding='cp949')
         else:
-            # 엑셀 파일 읽기 (engine='openpyxl' 명시)
             df = pd.read_excel(uploaded_file, engine='openpyxl')
 
         # 데이터 전처리: 컬럼명 공백 제거
@@ -46,18 +34,14 @@ if uploaded_file is not None:
 
         # 컬럼명 대응 (14일/1일 기준)
         col_qty = '총 판매수량(14일)' if '총 판매수량(14일)' in df.columns else '총 판매수량(1일)'
-        col_rev = '총 전환매출액(14일)' if '총 전환매출액(14일)' in df.columns else '총 전환매출액(1일)'
 
-        # 필수 컬럼 체크
-        required_cols = ['광고 노출 지면', '노출수', '클릭수', '광고비', col_qty]
-        if all(col in df.columns for col in required_cols):
-            
+        if '광고 노출 지면' in df.columns:
             # 4. 데이터 요약 분석
             target_cols = {'노출수': 'sum', '클릭수': 'sum', '광고비': 'sum', col_qty: 'sum'}
             summary = df.groupby('광고 노출 지면').agg(target_cols).reset_index()
             summary.columns = ['지면', '노출수', '클릭수', '광고비', '판매수량']
 
-            # 실제 매출액 및 실제 ROAS 계산
+            # 실제 매출액 및 실제 ROAS 계산 (사용자 입력 판매가 기준)
             summary['실제매출액'] = summary['판매수량'] * unit_price
             summary['실제ROAS'] = (summary['실제매출액'] / summary['광고비']).fillna(0)
             summary['클릭률(CTR)'] = (summary['클릭수'] / summary['노출수']).fillna(0)
@@ -89,25 +73,17 @@ if uploaded_file is not None:
             m1, m2, m3, m4 = st.columns(4)
             profit_color = "#FF4B4B" if total_profit >= 0 else "#1C83E1"
 
-            with m1:
-                st.markdown(f"""<div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; text-align: center;">
-                    <p style="margin:0; font-size:14px; color:#555;">최종 실질 순이익</p>
-                    <h2 style="margin:0; color:{profit_color};">{total_profit:,.0f}원</h2>
-                </div>""", unsafe_allow_html=True)
-            with m2:
-                st.markdown(f"""<div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; text-align: center;">
-                    <p style="margin:0; font-size:14px; color:#555;">총 광고비</p>
-                    <h2 style="margin:0; color:#31333F;">{tot['광고비']:,.0f}원</h2>
-                </div>""", unsafe_allow_html=True)
-            with m3:
-                st.markdown(f"""<div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; text-align: center;">
-                    <p style="margin:0; font-size:14px; color:#555;">실제 ROAS</p>
-                    <h2 style="margin:0; color:#31333F;">{total_real_roas:.2%}</h2>
-                </div>""", unsafe_allow_html=True)
-            with m4:
-                st.markdown(f"""<div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; text-align: center;">
-                    <p style="margin:0; font-size:14px; color:#555;">총 판매수량</p>
-                    <h2 style="margin:0; color:#31333F;">{tot['판매수량']:,.0f}개</h2>
+            metrics = [
+                ("최종 실질 순이익", f"{total_profit:,.0f}원", profit_color),
+                ("총 광고비", f"{tot['광고비']:,.0f}원", "#31333F"),
+                ("실제 ROAS", f"{total_real_roas:.2%}", "#31333F"),
+                ("총 판매수량", f"{tot['판매수량']:,.0f}개", "#31333F")
+            ]
+            
+            for col, (label, value, color) in zip([m1, m2, m3, m4], metrics):
+                col.markdown(f"""<div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; text-align: center;">
+                    <p style="margin:0; font-size:14px; color:#555;">{label}</p>
+                    <h2 style="margin:0; color:{color};">{value}</h2>
                 </div>""", unsafe_allow_html=True)
 
             st.write("")
@@ -142,44 +118,10 @@ if uploaded_file is not None:
                     st.text_area("📋 아래 키워드를 복사 후 '제외 키워드'에 등록하세요:", value=", ".join(bad_names), height=120)
                     st.dataframe(bad_kws.style.format({'광고비': '{:,.0f}원', col_qty: '{:,.0f}개'}), use_container_width=True)
 
-            # 8. 훈프로의 정밀 운영 제안
+            # 8. 훈프로의 정밀 운영 제안 (기존 상세 버전 복구)
             st.divider()
             st.subheader("💡 훈프로의 정밀 운영 제안")
             col1, col2, col3 = st.columns(3)
+
             with col1:
                 st.info("🖼️ **CTR 분석 (썸네일)**")
-                ctr_val = total_data['클릭률(CTR)']
-                st.write(f"- **현재 CTR: {ctr_val:.2%}**")
-                if ctr_val < 0.01:
-                    st.write("- **상태**: 낮은 클릭률. 썸네일 개선 필요.")
-                else:
-                    st.write("- **상태**: 클릭률 양호.")
-
-            with col2:
-                st.warning("🛒 **CVR 분석 (상세페이지)**")
-                cvr_val = total_data['구매전환율(CVR)']
-                st.write(f"- **현재 CVR: {cvr_val:.2%}**")
-                if cvr_val < 0.05:
-                    st.write("- **상태**: 상세페이지 설득력 부족.")
-                else:
-                    st.write("- **상태**: 전환율 양호.")
-
-            with col3:
-                st.error("💰 **목표수익률 최적화 가이드**")
-                st.write(f"- **현재 실제 ROAS: {total_real_roas:.2%}**")
-                if total_real_roas < 2.0:
-                    st.write("🔴 **목표수익률 즉시 100%p~200%p 상향 설정하세요.**")
-                elif 2.0 <= total_real_roas < 4.0:
-                    st.write("🟡 **목표수익률 30~50%p 상향하여 운영하세요.**")
-                elif 4.0 <= total_real_roas < 6.0:
-                    st.write("🟢 **현재 설정을 유지하며 점유율을 관리하세요.**")
-                else:
-                    st.write("🚀 **목표수익률 50%p~100%p 하향하여 노출을 대폭 늘리세요.**")
-        else:
-            st.warning("⚠️ 필수 컬럼이 부족합니다. 광고 보고서 원본 파일인지 확인해주세요.")
-
-    except Exception as e:
-        st.error(f"데이터 처리 중 오류 발생: {e}")
-
-st.divider()
-st.markdown("<div style='text-align: center;'><a href='https://hoonpro.liveklass.com/' target='_blank'>🏠 쇼크트리 훈프로 홈페이지 바로가기</a></div>", unsafe_allow_html=True)

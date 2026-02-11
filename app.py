@@ -9,25 +9,28 @@ st.markdown("쿠팡 보고서(CSV 또는 XLSX)를 업로드하면 훈프로의 �
 # --- 2. 사이드바: 수익성 계산 설정 ---
 st.sidebar.header("💰 마진 계산 설정")
 unit_price = st.sidebar.number_input("상품 판매가 (원)", min_value=0, value=0, step=100)
-unit_cost = st.sidebar.number_input("최종원가(물류비+세금등) (원)", min_value=0, value=0, step=100)
+unit_cost = st.sidebar.number_input("최종원가(매입가 등) (원)", min_value=0, value=0, step=100)
 
-# 쿠팡 수수료 입력 추가 (%)
-coupang_fee_rate = st.sidebar.number_input("쿠팡 수수료(vat포함) (%)", min_value=0.0, max_value=100.0, value=11.5, step=0.1)
+# 로켓그로스 입출고비 및 수수료 설정
+delivery_fee = st.sidebar.number_input("로켓그로스 입출고비 (원)", min_value=0, value=3650, step=10)
+coupang_fee_rate = st.sidebar.number_input("쿠팡 수수료(vat포함) (%)", min_value=0.0, max_value=100.0, value=11.55, step=0.1)
 
 # 수수료 금액 계산 (판매가 * 수수료율)
 total_fee_amount = unit_price * (coupang_fee_rate / 100)
 
-# 최종 마진 계산: 판매가 - 원가 - 수수료금액
-net_unit_margin = unit_price - unit_cost - total_fee_amount
+# 최종 마진 계산: 상품 판매가 - 최종원가 - 로켓그로스 입출고비 - 쿠팡 수수료
+net_unit_margin = unit_price - unit_cost - delivery_fee - total_fee_amount
 
 st.sidebar.divider()
+st.sidebar.write(f"**📦 입출고비 합계:** {delivery_fee:,.0f}원")
 st.sidebar.write(f"**📊 예상 수수료 ({coupang_fee_rate}%):** {total_fee_amount:,.0f}원")
 st.sidebar.write(f"**💡 개당 예상 마진:** :green[{net_unit_margin:,.0f}원]") 
 
-# 마진율 표시 (추가 옵션)
+# 마진율 표시
 if unit_price > 0:
     margin_rate = (net_unit_margin / unit_price) * 100
     st.sidebar.write(f"**📈 예상 마진율:** {margin_rate:.1f}%")
+
 # 3. 파일 업로드
 uploaded_file = st.file_uploader("보고서 파일을 선택하세요 (CSV 또는 XLSX)", type=['csv', 'xlsx'])
 

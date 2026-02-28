@@ -132,7 +132,7 @@ if uploaded_file is not None:
 
             if target_prod_col in df.columns:
                 st.divider()
-                st.subheader(f"🛍️ 옵션별 성과 분석 ({target_prod_col} 기준)")
+                st.subheader(f"🛍️ 옵션별 성과 분석")
 
                 # '광고집행 상품명' 기준으로 데이터 집계
                 df[target_prod_col] = df[target_prod_col].fillna('상품명 미확인')

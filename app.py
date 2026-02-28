@@ -126,15 +126,17 @@ if uploaded_file is not None:
             }).applymap(color_profit, subset=['실질순이익']), use_container_width=True)
 
             # =======================================================
-            # [추가된 기능] 옵션별 성과 분석 (상품명 기준)
+            # [수정된 기능] 옵션별 성과 분석 ('광고집행 상품명' 기준)
             # =======================================================
-            if '광고전환매출발생 상품명' in df.columns:
-                st.divider()
-                st.subheader("🛍️ 옵션별 성과 분석 (상품명 기준)")
+            target_prod_col = '광고집행 상품명'
 
-                # 상품명 기준으로 데이터 집계
-                df['광고전환매출발생 상품명'] = df['광고전환매출발생 상품명'].fillna('상품명 미확인')
-                prod_agg = df.groupby('광고전환매출발생 상품명').agg({
+            if target_prod_col in df.columns:
+                st.divider()
+                st.subheader(f"🛍️ 옵션별 성과 분석 ({target_prod_col} 기준)")
+
+                # '광고집행 상품명' 기준으로 데이터 집계
+                df[target_prod_col] = df[target_prod_col].fillna('상품명 미확인')
+                prod_agg = df.groupby(target_prod_col).agg({
                     '광고비': 'sum',
                     col_qty: 'sum',
                     '노출수': 'sum',

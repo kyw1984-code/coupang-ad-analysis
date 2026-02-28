@@ -125,6 +125,66 @@ if uploaded_file is not None:
                 '실질순이익': '{:,.0f}원'
             }).applymap(color_profit, subset=['실질순이익']), use_container_width=True)
 
+            # =======================================================
+            # [추가된 기능] 옵션별 성과 분석 (상품명 기준)
+            # =======================================================
+            if '광고전환매출발생 상품명' in df.columns:
+                st.divider()
+                st.subheader("🛍️ 옵션별 성과 분석 (상품명 기준)")
+
+                # 상품명 기준으로 데이터 집계
+                df['광고전환매출발생 상품명'] = df['광고전환매출발생 상품명'].fillna('상품명 미확인')
+                prod_agg = df.groupby('광고전환매출발생 상품명').agg({
+                    '광고비': 'sum',
+                    col_qty: 'sum',
+                    '노출수': 'sum',
+                    '클릭수': 'sum'
+                }).reset_index()
+
+                prod_agg.columns = ['상품명', '광고비', '판매수량', '노출수', '클릭수']
+
+                # 지표 계산
+                prod_agg['실제매출액'] = prod_agg['판매수량'] * unit_price
+                prod_agg['실제ROAS'] = (prod_agg['실제매출액'] / prod_agg['광고비']).fillna(0)
+                prod_agg['실질순이익'] = (prod_agg['판매수량'] * net_unit_margin) - prod_agg['광고비']
+                prod_agg['구매전환율(CVR)'] = (prod_agg['판매수량'] / prod_agg['클릭수']).fillna(0)
+
+                # 1. 잘 팔리는 옵션 (판매수량 > 0)
+                st.markdown("##### 🏆 잘 팔리는 효자 옵션 (판매수량 순)")
+                winning_products = prod_agg[prod_agg['판매수량'] > 0].sort_values(by='판매수량', ascending=False)
+                
+                if not winning_products.empty:
+                    # 인덱스 1부터 시작
+                    winning_products = winning_products.reset_index(drop=True)
+                    winning_products.index = winning_products.index + 1
+                    
+                    st.dataframe(winning_products.style.format({
+                        '광고비': '{:,.0f}원', '판매수량': '{:,.0f}개', '실제매출액': '{:,.0f}원',
+                        '실제ROAS': '{:.2%}', '실질순이익': '{:,.0f}원', '구매전환율(CVR)': '{:.2%}'
+                    }).applymap(color_profit, subset=['실질순이익']), use_container_width=True)
+                else:
+                    st.info("판매가 발생한 상품 옵션이 없습니다.")
+
+                st.write("")
+
+                # 2. 안 팔리는 옵션 (판매수량 == 0, 광고비 지출 순)
+                st.markdown("##### 💸 돈만 나가는 옵션 (판매 0건, 광고비 지출 순)")
+                losing_products = prod_agg[(prod_agg['판매수량'] == 0) & (prod_agg['광고비'] > 0)].sort_values(by='광고비', ascending=False)
+                
+                if not losing_products.empty:
+                    # 인덱스 1부터 시작
+                    losing_products = losing_products.reset_index(drop=True)
+                    losing_products.index = losing_products.index + 1
+                    
+                    st.error(f"⚠️ 총 **{len(losing_products)}개**의 옵션이 판매 없이 광고비만 소진 중입니다.")
+                    st.dataframe(losing_products[['상품명', '광고비', '노출수', '클릭수']].style.format({
+                        '광고비': '{:,.0f}원', '노출수': '{:,.0f}', '클릭수': '{:,.0f}'
+                    }), use_container_width=True)
+                else:
+                    st.success("광고비만 쓰고 판매되지 않은 옵션은 없습니다.")
+            # =======================================================
+
+
             # --- 7. 판매 발생 키워드 (전체) ---
             if '키워드' in df.columns:
                 df['키워드'] = df['키워드'].fillna('미식별')
